@@ -1,12 +1,19 @@
 /**
- * useMonad.js — Unified wallet + contract hook
+ * useMonad.js — Unified wallet + contract hook  (Privy Edition)
+ *
+ * Auth flow:
+ *   1. User clicks LOGIN → Privy modal (email / Google / Twitter / wallet)
+ *   2. Privy creates an embedded wallet automatically for the user
+ *   3. Embedded wallet IS their main wallet — no MetaMask needed
+ *   4. One-time setup via enableSession():
+ *        a. deposit() MON from embedded wallet → funding in-game balance
+ *        b. setSession(ephemeralKey, expiry) → registers session key on-chain
+ *        c. fundSession(gasAmount) → give session key gas budget
+ *   5. All attacks signed by ephemeral session key — zero popups forever
  *
  * Modes:
- *   DEMO: all functions return mock data, no wallet needed
- *   LIVE: MetaMask/Privy → real on-chain txs → backend sync
- *
- * Auto-fallback: if live mode encounters errors (no wallet, bad RPC),
- * it gracefully falls back to demo behavior for that call.
+ *   DEMO: mock data, no wallet needed
+ *   LIVE: real Privy + session key + on-chain txs + backend sync
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react'
@@ -20,6 +27,7 @@ import {
   restoreSessionWallet, createSessionWallet, saveSessionExpiry,
   clearSession, isSessionActive, SESSION_DURATION_HOURS,
 } from '../utils/session'
+import { usePrivy, useWallets } from '../context/PrivyWrapper'
 
 const API_POLL_INTERVAL = 5_000
 
@@ -45,22 +53,29 @@ async function apiPost(path, body) {
 }
 
 export default function useMonad() {
+  // ── Privy hooks ─────────────────────────────────────────────────────────
+  const { ready, authenticated, login, logout, user } = usePrivy()
+  const { wallets } = useWallets()
+
   // ── Core state ──────────────────────────────────────────────────────────
   const [account, setAccount]               = useState(null)
   const [chainId, setChainId]               = useState(null)
-  const [nativeBalance, setNativeBalance]    = useState('0.000')
+  const [nativeBalance, setNativeBalance]   = useState('0.000')
   const [contractBalance, setContractBalance] = useState('0.000')
-  const [isPending, setIsPending]            = useState(false)
-  const [error, setError]                    = useState(null)
-  const [castlesOnChain, setCastlesOnChain]  = useState(null)
-  const [leaderboard, setLeaderboard]        = useState([])
-  const [attackLog, setAttackLog]            = useState([])
-  const [playerStats, setPlayerStats]        = useState(null)
-  const [sessionWallet, setSessionWallet]    = useState(null)
+  const [isPending, setIsPending]           = useState(false)
+  const [error, setError]                   = useState(null)
+  const [castlesOnChain, setCastlesOnChain] = useState(null)
+  const [leaderboard, setLeaderboard]       = useState([])
+  const [attackLog, setAttackLog]           = useState([])
+  const [playerStats, setPlayerStats]       = useState(null)
+  const [sessionWallet, setSessionWallet]   = useState(null)
 
-  const providerRef  = useRef(null)
-  const signerRef    = useRef(null)
-  const contractRef  = useRef(null)
+  // Whether deposit + setSession one-time setup is done
+  const [sessionSetupDone, setSessionSetupDone] = useState(false)
+
+  const providerRef  = useRef(null)  // Privy embedded wallet provider
+  const signerRef    = useRef(null)  // Privy embedded wallet signer (main)
+  const contractRef  = useRef(null)  // CastleWar contract via embedded wallet
   const accountRef   = useRef(null)
   accountRef.current = account
 
@@ -73,6 +88,51 @@ export default function useMonad() {
   if (!readProvider.current) {
     try { readProvider.current = new ethers.JsonRpcProvider(MONAD_RPC) } catch {}
   }
+
+  // ── Wire up embedded wallet when Privy authenticates ───────────────────
+  useEffect(() => {
+    if (IS_DEMO || !authenticated || !ready) return
+
+    const embeddedWallet = wallets.find(w => w.walletClientType === 'privy')
+    if (!embeddedWallet) return
+
+    async function initEmbedded() {
+      try {
+        // Switch embedded wallet to Monad Testnet
+        await embeddedWallet.switchChain(MONAD_CHAIN_ID)
+
+        const eip1193Provider = await embeddedWallet.getEthereumProvider()
+        const ethersProvider  = new ethers.BrowserProvider(eip1193Provider)
+        const signer          = await ethersProvider.getSigner()
+        const addr            = await signer.getAddress()
+        const network         = await ethersProvider.getNetwork()
+
+        providerRef.current = ethersProvider
+        signerRef.current   = signer
+
+        if (CONTRACT_ADDR) {
+          contractRef.current = new ethers.Contract(CONTRACT_ADDR, CASTLE_WAR_ABI, signer)
+        }
+
+        setAccount(addr)
+        setChainId(Number(network.chainId))
+
+        // Register player in backend
+        apiPost('/api/player', { address: addr, wins_delta: 0, earned_delta: 0, attack_delta: 0 })
+
+        // Restore session wallet if still valid
+        if (isSessionActive() && readProvider.current) {
+          const restored = restoreSessionWallet(readProvider.current)
+          if (restored) setSessionWallet(restored)
+        }
+      } catch (err) {
+        console.error('[useMonad] embedded wallet init failed', err)
+        setError('Wallet setup failed: ' + err.message)
+      }
+    }
+
+    initEmbedded()
+  }, [authenticated, ready, wallets])
 
   // ── Backend polling ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -167,18 +227,10 @@ export default function useMonad() {
     return () => { cancelled = true; clearInterval(id) }
   }, [account])
 
-  // ── Restore session wallet on mount ─────────────────────────────────────
-  useEffect(() => {
-    if (isSessionActive() && readProvider.current) {
-      const wallet = restoreSessionWallet(readProvider.current)
-      if (wallet) setSessionWallet(wallet)
-    }
-  }, [])
-
   // ── CONNECT ─────────────────────────────────────────────────────────────
+  // Triggers Privy login modal — embedded wallet setup handled in useEffect above
   const connect = useCallback(async () => {
     setError(null)
-
     if (IS_DEMO) {
       setAccount(DEMO_WALLET)
       setChainId(MONAD_CHAIN_ID)
@@ -186,153 +238,90 @@ export default function useMonad() {
       setContractBalance('5.000')
       return
     }
-
-    if (!window.ethereum) {
-      setError('No browser wallet found. Install MetaMask!')
+    if (!ready) { setError('Privy not ready yet, try again…'); return }
+    if (authenticated) {
+      // Already logged in via Privy — re-init embedded wallet
+      const embeddedWallet = wallets.find(w => w.walletClientType === 'privy')
+      if (embeddedWallet) {
+        try {
+          await embeddedWallet.switchChain(MONAD_CHAIN_ID)
+          const eip1193Provider = await embeddedWallet.getEthereumProvider()
+          const ethersProvider  = new ethers.BrowserProvider(eip1193Provider)
+          const signer          = await ethersProvider.getSigner()
+          const addr            = await signer.getAddress()
+          const network         = await ethersProvider.getNetwork()
+          providerRef.current = ethersProvider
+          signerRef.current   = signer
+          if (CONTRACT_ADDR) contractRef.current = new ethers.Contract(CONTRACT_ADDR, CASTLE_WAR_ABI, signer)
+          setAccount(addr)
+          setChainId(Number(network.chainId))
+        } catch (e) { setError(e.message) }
+      }
       return
     }
-
-    try {
-      const provider = new ethers.BrowserProvider(window.ethereum)
-      await provider.send('eth_requestAccounts', [])
-
-      try {
-        await provider.send('wallet_switchEthereumChain',
-          [{ chainId: '0x' + MONAD_CHAIN_ID.toString(16) }])
-      } catch (switchErr) {
-        if (switchErr.code === 4902) {
-          await provider.send('wallet_addEthereumChain', [{
-            chainId: '0x' + MONAD_CHAIN_ID.toString(16),
-            chainName: 'Monad Testnet',
-            nativeCurrency: { name: 'MON', symbol: 'MON', decimals: 18 },
-            rpcUrls: [MONAD_RPC],
-            blockExplorerUrls: ['https://testnet.monadexplorer.com'],
-          }])
-        }
-      }
-
-      const signer = await provider.getSigner()
-      const addr = await signer.getAddress()
-      const network = await provider.getNetwork()
-
-      providerRef.current = provider
-      signerRef.current   = signer
-
-      if (CONTRACT_ADDR) {
-        contractRef.current = new ethers.Contract(CONTRACT_ADDR, CASTLE_WAR_ABI, signer)
-      }
-
-      setAccount(addr)
-      setChainId(Number(network.chainId))
-
-      apiPost('/api/player', { address: addr, wins_delta: 0, earned_delta: 0, attack_delta: 0 })
-    } catch (e) {
-      setError(e.message || 'Connection failed')
-    }
-  }, [])
+    // Not yet logged in — open Privy modal
+    login()
+  }, [ready, authenticated, login, wallets])
 
   // ── DISCONNECT ──────────────────────────────────────────────────────────
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback(async () => {
+    try { await logout() } catch {}
     setAccount(null)
     setChainId(null)
     setNativeBalance('0.000')
     setContractBalance('0.000')
     setPlayerStats(null)
+    setSessionWallet(null)
+    setSessionSetupDone(false)
     providerRef.current  = null
     signerRef.current    = null
     contractRef.current  = null
+    clearSession()
     setError(null)
-  }, [])
+  }, [logout])
 
-  // ── ENABLE SESSION ──────────────────────────────────────────────────────
+  // ── ENABLE SESSION (one-time gasless setup) ─────────────────────────────
+  /**
+   * Creates an ephemeral session key, registers it on-chain via the Privy
+   * embedded wallet (no MetaMask popup), and funds it with a tiny gas budget.
+   * After this, attack() never needs any wallet interaction.
+   */
   const enableSession = useCallback(async () => {
     if (!signerRef.current || !contractRef.current) {
-      console.warn('enableSession: no signer or contract')
+      console.warn('enableSession: no signer or contract — make sure wallet is connected')
       return null
     }
     setIsPending(true)
     try {
       const ephemeral = createSessionWallet()
-      const expiry = Math.floor(Date.now() / 1000) + SESSION_DURATION_HOURS * 3600
+      const expiry    = Math.floor(Date.now() / 1000) + SESSION_DURATION_HOURS * 3600
+
+      // Register session on-chain (Privy embedded wallet signs silently)
       const tx = await contractRef.current.setSession(ephemeral.address, expiry)
       await tx.wait()
       saveSessionExpiry(expiry)
 
+      // Fund session wallet with gas from in-game balance (0.005 MON ≈ ~500 attacks of gas)
       try {
         const fundTx = await contractRef.current.fundSession(ethers.parseEther('0.005'))
         await fundTx.wait()
       } catch (fundErr) {
-        console.warn('Session fund for gas (optional) failed:', fundErr.message)
+        console.warn('[enableSession] fundSession optional step failed:', fundErr.message)
       }
 
       const connected = ephemeral.connect(readProvider.current)
       setSessionWallet(connected)
+      setSessionSetupDone(true)
       return connected
     } catch (err) {
-      console.error('enableSession failed', err)
+      console.error('[enableSession] failed', err)
+      setError(err.reason || err.message?.slice(0, 120) || 'Session setup failed')
       clearSession()
       return null
     } finally {
       setIsPending(false)
     }
   }, [])
-
-  // ── ATTACK ──────────────────────────────────────────────────────────────
-  const attack = useCallback(async (castleId) => {
-    if (IS_DEMO) {
-      // Demo mode: fake tx, update local castle HP
-      const fakeHash = '0x' + Math.random().toString(16).slice(2, 66).padEnd(64, '0')
-      setCastlesOnChain(prev => prev
-        ? prev.map(c => c.id === castleId
-            ? { ...c, hp: Math.max(0, c.hp - 50), lastAttacker: DEMO_WALLET }
-            : c)
-        : prev
-      )
-      apiPost('/api/events', {
-        type: 'attack', castle_id: castleId, actor: DEMO_WALLET,
-        tx_hash: fakeHash, value_mon: String(ethers.parseEther(String(ATTACK_COST))),
-        round_id: 0,
-      })
-      apiPost('/api/player', { address: DEMO_WALLET, attack_delta: 1 })
-      return fakeHash
-    }
-
-    const mainAddr = accountRef.current
-    if (!mainAddr) { setError('Connect wallet first'); return null }
-
-    setIsPending(true)
-    setError(null)
-    try {
-      let tx
-      const value = ethers.parseEther(String(ATTACK_COST))
-      if (sessionWallet && isSessionActive()) {
-        // Session wallet pays no ETH — it's pre-funded
-        const sessionContract = new ethers.Contract(CONTRACT_ADDR, CASTLE_WAR_ABI, sessionWallet)
-        tx = await sessionContract.attack(castleId, mainAddr)
-      } else if (contractRef.current) {
-        tx = await contractRef.current.attack(castleId, mainAddr, { value })
-      } else {
-        setError('Contract not connected')
-        return null
-      }
-      const receipt = await tx.wait()
-
-      apiPost('/api/events', {
-        type: 'attack', castle_id: castleId, actor: mainAddr,
-        tx_hash: receipt.hash, value_mon: String(value), round_id: 0,
-      })
-      apiPost('/api/player', { address: mainAddr, attack_delta: 1 })
-      refreshCastles()
-
-      return receipt.hash
-    } catch (err) {
-      console.error('attack failed', err)
-      setError(err.reason || err.message?.slice(0, 100) || 'Attack failed')
-      return null
-    } finally {
-      setIsPending(false)
-    }
-  }, [sessionWallet, refreshCastles])
 
   // ── DEPOSIT ─────────────────────────────────────────────────────────────
   const deposit = useCallback(async (amountEth) => {
@@ -368,31 +357,88 @@ export default function useMonad() {
     }
   }, [])
 
-  // ── Listen for account/chain changes ────────────────────────────────────
-  useEffect(() => {
-    if (!window.ethereum || IS_DEMO) return
-    const handleAccounts = (accts) => {
-      if (accts.length === 0) disconnect()
-      else setAccount(accts[0])
+  // ── ATTACK ──────────────────────────────────────────────────────────────
+  const attack = useCallback(async (castleId) => {
+    if (IS_DEMO) {
+      const fakeHash = '0x' + Math.random().toString(16).slice(2, 66).padEnd(64, '0')
+      setCastlesOnChain(prev => prev
+        ? prev.map(c => c.id === castleId
+            ? { ...c, hp: Math.max(0, c.hp - 50), lastAttacker: DEMO_WALLET }
+            : c)
+        : prev
+      )
+      apiPost('/api/events', {
+        type: 'attack', castle_id: castleId, actor: DEMO_WALLET,
+        tx_hash: fakeHash, value_mon: String(ethers.parseEther(String(ATTACK_COST))),
+        round_id: 0,
+      })
+      apiPost('/api/player', { address: DEMO_WALLET, attack_delta: 1 })
+      return fakeHash
     }
-    const handleChain = (id) => setChainId(Number(id))
-    window.ethereum.on('accountsChanged', handleAccounts)
-    window.ethereum.on('chainChanged', handleChain)
-    return () => {
-      window.ethereum.removeListener('accountsChanged', handleAccounts)
-      window.ethereum.removeListener('chainChanged', handleChain)
+
+    const mainAddr = accountRef.current
+    if (!mainAddr) { setError('Connect your wallet first'); return null }
+
+    setIsPending(true)
+    setError(null)
+    try {
+      let tx
+      const value = ethers.parseEther(String(ATTACK_COST))
+
+      if (sessionWallet && isSessionActive()) {
+        // ✅ GASLESS PATH: session key attacks on behalf of main wallet
+        const sessionContract = new ethers.Contract(CONTRACT_ADDR, CASTLE_WAR_ABI, sessionWallet)
+        tx = await sessionContract.attack(castleId, mainAddr)
+      } else if (contractRef.current) {
+        // Fallback: main wallet (Privy embedded) attacks directly
+        tx = await contractRef.current.attack(castleId, mainAddr, { value })
+      } else {
+        setError('Wallet not connected to contract')
+        return null
+      }
+
+      const receipt = await tx.wait()
+
+      apiPost('/api/events', {
+        type: 'attack', castle_id: castleId, actor: mainAddr,
+        tx_hash: receipt.hash, value_mon: String(value), round_id: 0,
+      })
+      apiPost('/api/player', { address: mainAddr, attack_delta: 1 })
+      refreshCastles()
+
+      return receipt.hash
+    } catch (err) {
+      console.error('[attack] failed', err)
+      setError(err.reason || err.message?.slice(0, 100) || 'Attack failed')
+      return null
+    } finally {
+      setIsPending(false)
     }
-  }, [disconnect])
+  }, [sessionWallet, refreshCastles])
 
   return {
+    // Auth state
+    privyReady: ready,
+    privyUser: user,
+    authenticated,
+
+    // Wallet state
     account, chainId, nativeBalance, contractBalance,
     castlesOnChain, playerStats,
     isConnected, isOnMonad, hasContract, isPending, error,
     mode: MODE,
+
+    // Data
     leaderboard, attackLog,
+
+    // Session
     sessionActive: isSessionActive(),
     sessionWallet,
-    connect, disconnect, attack, deposit, withdraw,
+    sessionSetupDone,
+
+    // Actions
+    connect, disconnect,
+    attack, deposit, withdraw,
     enableSession, refreshCastles,
   }
 }

@@ -5,6 +5,7 @@ import Game from './game/Game'
 import LeftSidebar from './components/LeftSidebar'
 import RightSidebar from './components/RightSidebar'
 import NavBar from './components/NavBar'
+import GaslessSetup from './components/GaslessSetup'
 import { useMonadContext } from './context/MonadContext'
 import { IS_DEMO, CASTLE_NAMES, EXPLORER_URL, ATTACK_COST, DAMAGE_PER_HIT } from './config'
 
@@ -46,9 +47,17 @@ export default function App() {
   const [muted,          setMuted]           = useState(() => localStorage.getItem('mc_muted') === '1')
   const [leaders,        setLeaders]         = useState([])
   const [chatEvent,      setChatEvent]       = useState(null)
+  // Gasless setup panel: show after login when contract is deployed and session not yet active
+  const [showSetup,      setShowSetup]       = useState(false)
   const player = { name: localStorage.getItem('mc_username') || 'Warrior', addr: monad.account || null }
 
-  // No auto-connect — user clicks CONNECT WALLET to trigger MetaMask
+  // Open gasless setup when user first connects with a deployed contract
+  useEffect(() => {
+    if (monad.isConnected && monad.hasContract && !monad.sessionActive && !IS_DEMO) {
+      setShowSetup(true)
+    }
+    if (!monad.isConnected) setShowSetup(false)
+  }, [monad.isConnected, monad.hasContract, monad.sessionActive])
 
   // ── REDIRECT: first-time visitors go to /intro AFTER all hooks run ──
   if (needsIntro) return <Navigate to="/intro" replace />
@@ -149,6 +158,21 @@ export default function App() {
   return (
     <div className="app-root">
 
+      {/* ── GASLESS SETUP PANEL ── */}
+      {showSetup && (
+        <GaslessSetup
+          onDeposit={monad.deposit}
+          onEnableSession={async () => {
+            const ok = await monad.enableSession()
+            if (ok) setShowSetup(false)
+          }}
+          onSkip={() => setShowSetup(false)}
+          isPending={monad.isPending}
+          contractBalance={monad.contractBalance}
+          sessionActive={monad.sessionActive}
+        />
+      )}
+
       {/* ── NAV BAR ── */}
       <NavBar
         balance={displayBalance}
@@ -159,6 +183,9 @@ export default function App() {
         account={monad.account}
         onConnect={monad.connect}
         onDisconnect={monad.disconnect}
+        sessionActive={monad.sessionActive}
+        onEnableSession={monad.enableSession}
+        isPending={monad.isPending}
       />
 
       {/* ── MAIN ROW ── */}

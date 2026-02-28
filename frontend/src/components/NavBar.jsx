@@ -28,7 +28,7 @@ function NavBtn({ label, active, onClick, warn }) {
   )
 }
 
-export default function NavBar({ balance, muted, onMute, sceneRef, isConnected = false, account = null, onConnect, onDisconnect }) {
+export default function NavBar({ balance, muted, onMute, sceneRef, isConnected = false, account = null, onConnect, onDisconnect, sessionActive = false, onEnableSession, isPending = false }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [tickIdx, setTickIdx] = useState(0)
@@ -89,35 +89,59 @@ export default function NavBar({ balance, muted, onMute, sceneRef, isConnected =
         <div style={{ display:'flex', alignItems:'center', gap:4 }}>
           {/* Wallet connect / connected indicator */}
           {isConnected ? (
-            <button
-              onClick={onDisconnect}
-              title="Click to disconnect"
-              style={{
-                padding: '4px 12px', height: 30, borderRadius: 6, cursor: 'pointer',
-                background: 'rgba(34,197,94,0.18)',
-                border: '1px solid rgba(34,197,94,0.60)',
-                color: '#4dff91',
-                fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
-                letterSpacing: 0.8, whiteSpace: 'nowrap', transition: 'all 0.13s',
-              }}
-            >
-              🔗 {account ? account.slice(0,6) + '…' + account.slice(-4) : 'CONNECTED'}
-            </button>
+            <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+              {/* Session badge */}
+              {sessionActive ? (
+                <div title="Gasless session active — attacks require no wallet popup!" style={{
+                  padding: '3px 8px', height: 28, borderRadius: 6,
+                  background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.5)',
+                  color: '#4dff91', fontFamily: 'monospace', fontSize: 9, fontWeight: 700, letterSpacing: 0.8,
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                  <span style={{ fontSize: 10 }}>⚡</span> GASLESS
+                </div>
+              ) : (
+                <button
+                  onClick={onEnableSession}
+                  disabled={isPending}
+                  title="Enable session key for one-click gasless attacks"
+                  style={{
+                    padding: '3px 9px', height: 28, borderRadius: 6, cursor: isPending ? 'not-allowed' : 'pointer',
+                    background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.5)',
+                    color: '#fbbf24', fontFamily: 'monospace', fontSize: 9, fontWeight: 700, letterSpacing: 0.8,
+                    display: 'flex', alignItems: 'center', gap: 4, opacity: isPending ? 0.6 : 1,
+                  }}
+                >
+                  <span>⚡</span> {isPending ? 'SETTING UP…' : 'ENABLE GASLESS'}
+                </button>
+              )}
+              {/* Account badge */}
+              <button
+                onClick={onDisconnect}
+                title="Click to log out"
+                style={{
+                  padding: '4px 12px', height: 30, borderRadius: 6, cursor: 'pointer',
+                  background: 'rgba(34,197,94,0.18)', border: '1px solid rgba(34,197,94,0.60)',
+                  color: '#4dff91', fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
+                  letterSpacing: 0.8, whiteSpace: 'nowrap', transition: 'all 0.13s',
+                }}
+              >
+                🔗 {account ? account.slice(0,6) + '…' + account.slice(-4) : 'CONNECTED'}
+              </button>
+            </div>
           ) : (
             <button
               onClick={onConnect}
               style={{
                 padding: '5px 14px', height: 30, borderRadius: 6, cursor: 'pointer',
                 background: 'linear-gradient(135deg,rgba(251,191,36,0.28),rgba(245,158,11,0.18))',
-                border: '1px solid rgba(251,191,36,0.70)',
-                color: '#fbbf24',
+                border: '1px solid rgba(251,191,36,0.70)', color: '#fbbf24',
                 fontFamily: 'monospace', fontSize: 10, fontWeight: 800,
                 letterSpacing: 1, whiteSpace: 'nowrap', transition: 'all 0.13s',
-                boxShadow: '0 0 12px rgba(251,191,36,0.20)',
-                animation: 'pulse-gold 2s infinite',
+                boxShadow: '0 0 12px rgba(251,191,36,0.20)', animation: 'pulse-gold 2s infinite',
               }}
             >
-              🦊 CONNECT WALLET
+              🦊 LOGIN
             </button>
           )}
           <div style={{ width: 1, height: 20, background: C.border }} />

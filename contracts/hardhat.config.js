@@ -1,5 +1,7 @@
 require("@nomicfoundation/hardhat-toolbox");
-require("dotenv").config({ path: "../.env" });
+const path = require("path");
+// Resolve .env regardless of which directory hardhat is run from
+require("dotenv").config({ path: path.join(__dirname, "../.env") });
 
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
@@ -8,6 +10,13 @@ module.exports = {
     settings: {
       optimizer: { enabled: true, runs: 200 },
     },
+  },
+  // Explicit paths so hardhat works from any CWD
+  paths: {
+    sources:   path.join(__dirname, "contracts"),
+    tests:     path.join(__dirname, "test"),
+    cache:     path.join(__dirname, "cache"),
+    artifacts: path.join(__dirname, "artifacts"),
   },
   networks: {
     hardhat: {},
