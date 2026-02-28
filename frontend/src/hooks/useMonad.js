@@ -302,11 +302,15 @@ export default function useMonad() {
       saveSessionExpiry(expiry)
 
       // Fund session wallet with gas from in-game balance (0.005 MON ≈ ~500 attacks of gas)
+      let sessionFunded = false
       try {
         const fundTx = await contractRef.current.fundSession(ethers.parseEther('0.005'))
         await fundTx.wait()
+        sessionFunded = true
       } catch (fundErr) {
-        console.warn('[enableSession] fundSession optional step failed:', fundErr.message)
+        console.warn('[enableSession] fundSession failed (session active but no gas budget):', fundErr.message)
+        // Session is still registered — attacks from session wallet will fail due to no gas
+        // User must ensure session wallet has native MON (or reduce fundSession amount)
       }
 
       const connected = ephemeral.connect(readProvider.current)
@@ -383,7 +387,6 @@ export default function useMonad() {
     setError(null)
     try {
       let tx
-      const value = ethers.parseEther(String(ATTACK_COST))
 
       if (sessionWallet && isSessionActive()) {
         // ✅ GASLESS PATH: session key attacks on behalf of main wallet
@@ -391,7 +394,8 @@ export default function useMonad() {
         tx = await sessionContract.attack(castleId, mainAddr)
       } else if (contractRef.current) {
         // Fallback: main wallet (Privy embedded) attacks directly
-        tx = await contractRef.current.attack(castleId, mainAddr, { value })
+        // attack() is NOT payable — uses in-game balance deposited via deposit()
+        tx = await contractRef.current.attack(castleId, mainAddr)
       } else {
         setError('Wallet not connected to contract')
         return null
@@ -401,7 +405,7 @@ export default function useMonad() {
 
       apiPost('/api/events', {
         type: 'attack', castle_id: castleId, actor: mainAddr,
-        tx_hash: receipt.hash, value_mon: String(value), round_id: 0,
+        tx_hash: receipt.hash, value_mon: String(ethers.parseEther(String(ATTACK_COST))), round_id: 0,
       })
       apiPost('/api/player', { address: mainAddr, attack_delta: 1 })
       refreshCastles()

@@ -165,6 +165,7 @@ export default function App() {
           onEnableSession={async () => {
             const ok = await monad.enableSession()
             if (ok) setShowSetup(false)
+            return ok  // let GaslessSetup react to success too
           }}
           onSkip={() => setShowSetup(false)}
           isPending={monad.isPending}
