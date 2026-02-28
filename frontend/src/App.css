@@ -1,4 +1,8 @@
 /* ── App Layout ─────────────────────────────────────────── */
+@keyframes pulse-gold {
+  0%, 100% { box-shadow: 0 0 10px rgba(251,191,36,0.20); }
+  50%       { box-shadow: 0 0 22px rgba(251,191,36,0.55); }
+}
 .app-root {
   width: 100vw;
   height: 100vh;

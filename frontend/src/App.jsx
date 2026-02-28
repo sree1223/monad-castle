@@ -46,14 +46,9 @@ export default function App() {
   const [muted,          setMuted]           = useState(() => localStorage.getItem('mc_muted') === '1')
   const [leaders,        setLeaders]         = useState([])
   const [chatEvent,      setChatEvent]       = useState(null)
-  const player = { name: localStorage.getItem('mc_username') || 'Warrior', addr: monad.account || '0x53Be1c7726577B08A6E63B62015c0e2863C0C816' }
+  const player = { name: localStorage.getItem('mc_username') || 'Warrior', addr: monad.account || null }
 
-  // ── Auto-connect in demo mode ──
-  useEffect(() => {
-    if (IS_DEMO && !monad.isConnected) {
-      monad.connect()
-    }
-  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  // No auto-connect — user clicks CONNECT WALLET to trigger MetaMask
 
   // ── REDIRECT: first-time visitors go to /intro AFTER all hooks run ──
   if (needsIntro) return <Navigate to="/intro" replace />
@@ -86,6 +81,12 @@ export default function App() {
     const name   = CASTLE_NAMES[castleId] ?? `Castle ${castleId + 1}`
     const castle = castles[castleId]
     if (castle?.fallen) return
+
+    // ── Not connected in live mode: prompt to connect ──
+    if (!monadRef.current?.isConnected) {
+      showToast('🦊 Connect your wallet to attack!', '#fbbf24', null, 4000)
+      return
+    }
 
     // ── LIVE MODE: real blockchain tx (also works in demo via monad.attack()) ──
     if (monadRef.current?.isConnected && monadRef.current?.hasContract) {
@@ -142,8 +143,8 @@ export default function App() {
   // To re-enable: uncomment the setInterval block below
   // useEffect(() => { if (needsIntro || isLive) return; const iv = setInterval(() => { ... }, 2000); return () => clearInterval(iv) }, [needsIntro, isLive])
 
-  // Resolved balance: real on-chain when connected, mock otherwise
-  const displayBalance = monad.isConnected ? monad.contractBalance : balance
+  // Resolved balance: real on-chain when connected, 0 when not
+  const displayBalance = monad.isConnected ? monad.nativeBalance : '0.000'
 
   return (
     <div className="app-root">

@@ -88,21 +88,38 @@ export default function NavBar({ balance, muted, onMute, sceneRef, isConnected =
 
         <div style={{ display:'flex', alignItems:'center', gap:4 }}>
           {/* Wallet connect / connected indicator */}
-          <button
-            onClick={isConnected ? onDisconnect : onConnect}
-            style={{
-              padding: '4px 11px', height: 30, borderRadius: 6, cursor: 'pointer',
-              background: isConnected ? 'rgba(34,197,94,0.18)' : 'rgba(251,191,36,0.14)',
-              border: `1px solid ${isConnected ? 'rgba(34,197,94,0.60)' : 'rgba(251,191,36,0.50)'}`,
-              color: isConnected ? '#4dff91' : '#fbbf24',
-              fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
-              letterSpacing: 0.8, whiteSpace: 'nowrap', transition: 'all 0.13s',
-            }}
-          >
-            {isConnected
-              ? `🔗 ${account ? account.slice(0,6) + '…' + account.slice(-4) : 'CONNECTED'}`
-              : '🔗 CONNECT'}
-          </button>
+          {isConnected ? (
+            <button
+              onClick={onDisconnect}
+              title="Click to disconnect"
+              style={{
+                padding: '4px 12px', height: 30, borderRadius: 6, cursor: 'pointer',
+                background: 'rgba(34,197,94,0.18)',
+                border: '1px solid rgba(34,197,94,0.60)',
+                color: '#4dff91',
+                fontFamily: 'monospace', fontSize: 10, fontWeight: 700,
+                letterSpacing: 0.8, whiteSpace: 'nowrap', transition: 'all 0.13s',
+              }}
+            >
+              🔗 {account ? account.slice(0,6) + '…' + account.slice(-4) : 'CONNECTED'}
+            </button>
+          ) : (
+            <button
+              onClick={onConnect}
+              style={{
+                padding: '5px 14px', height: 30, borderRadius: 6, cursor: 'pointer',
+                background: 'linear-gradient(135deg,rgba(251,191,36,0.28),rgba(245,158,11,0.18))',
+                border: '1px solid rgba(251,191,36,0.70)',
+                color: '#fbbf24',
+                fontFamily: 'monospace', fontSize: 10, fontWeight: 800,
+                letterSpacing: 1, whiteSpace: 'nowrap', transition: 'all 0.13s',
+                boxShadow: '0 0 12px rgba(251,191,36,0.20)',
+                animation: 'pulse-gold 2s infinite',
+              }}
+            >
+              🦊 CONNECT WALLET
+            </button>
+          )}
           <div style={{ width: 1, height: 20, background: C.border }} />
           <NavBtn label={muted ? '🔇 MUTED' : '🔊 SOUND'} active={!muted} warn={muted} onClick={toggleMute} />
           <NavBtn label='PROFILE'  active={pathname==='/profile'}  onClick={() => navigate('/profile')} />
