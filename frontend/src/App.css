@@ -1,0 +1,153 @@
+/* ── App Layout ─────────────────────────────────────────── */
+.app-root {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #090c18;
+  font-family: monospace;
+}
+
+.app-main-row {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  position: relative;
+}
+
+.app-game-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Toast Stack ──────────────────────────────────────── */
+.app-toast-stack {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 310px;
+  pointer-events: auto;
+}
+.app-toast {
+  background: rgba(8, 4, 1, 0.95);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  animation: fadeInRight 0.22s ease;
+}
+
+.app-toast-msg {
+  font-size: 13px;
+  font-weight: bold;
+  text-align: center;
+}
+
+.app-toast-tx {
+  font-size: 10px;
+  color: #4488ff;
+  text-decoration: none;
+  background: rgba(68, 136, 255, 0.12);
+  border-radius: 5px;
+  padding: 3px 10px;
+  border: 1px solid rgba(68, 136, 255, 0.3);
+}
+
+/* ── Capture Announce ───────────────────────────────────── */
+.app-capture-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 90;
+  pointer-events: none;
+}
+
+.app-capture-card {
+  background: rgba(4, 6, 20, 0.92);
+  border: 2px solid #ffd700;
+  border-radius: 16px;
+  padding: 28px 40px;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(255, 215, 0, 0.4), 0 0 120px rgba(255, 215, 0, 0.15);
+  animation: captureReveal 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-capture-icon   { font-size: 36px; margin-bottom: 8px; }
+.app-capture-title  {
+  font-size: 22px; font-weight: 900; color: #ffd700;
+  letter-spacing: 3px; margin-bottom: 6px;
+}
+.app-capture-desc   { font-size: 14px; color: #e2e8f0; margin-bottom: 10px; }
+.app-capture-winner { color: #a78bfa; font-weight: 700; }
+.app-capture-castle { color: #fbbf24; font-weight: 700; }
+.app-capture-prize  { font-size: 12px; color: #4dff91; font-weight: 700; letter-spacing: 1px; }
+.app-capture-footer { font-size: 9px; color: #6b74a8; margin-top: 10px; letter-spacing: 2px; }
+
+/* ── Hint bar ───────────────────────────────────────────── */
+.app-hint-bar {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 14px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(200, 160, 50, 0.12);
+  border-radius: 20px;
+  font-size: 9px;
+  color: rgba(240, 200, 100, 0.35);
+  pointer-events: none;
+}
+
+/* ── Animations ─────────────────────────────────────────── */
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@keyframes fadeInRight {
+  from { transform: translateX(40px); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 5px #22c55e; }
+  50%       { opacity: 0.4; box-shadow: 0 0 12px #22c55e, 0 0 20px #22c55e; }
+}
+@keyframes goldGlow {
+  0%, 100% { text-shadow: 0 0 6px rgba(245, 197, 66, 0.4); }
+  50%       { text-shadow: 0 0 18px rgba(245, 197, 66, 0.9), 0 0 30px rgba(245, 197, 66, 0.5); }
+}
+@keyframes entrySlide {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes captureReveal {
+  from { opacity: 0; transform: scale(0.7) translateY(20px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes attackPulse {
+  0%   { box-shadow: 0 0 18px rgba(255, 80, 80, 0.5); }
+  50%  { box-shadow: 0 0 32px rgba(255, 80, 80, 0.9); }
+  100% { box-shadow: 0 0 18px rgba(255, 80, 80, 0.5); }
+}
+@keyframes tickerScroll {
+  0%   { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+/* ── Shared utility classes ─────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+::-webkit-scrollbar-thumb { background: rgba(124, 86, 240, 0.4); border-radius: 3px; }
+.live-dot  { animation: livePulse 1.8s ease-in-out infinite; }
+.gold-num  { animation: goldGlow 2.4s ease-in-out infinite; }
+.log-entry { animation: entrySlide 0.2s ease; }

@@ -1,0 +1,233 @@
+[6:44 pm, 05/02/2026] Dheram Sreeharsha: Mini On-chain Castle War — spec prompt
+
+Goal
+Shared battlefield with few castles. Players spend MON to attack. Last hit that destroys a castle wins the pool and becomes owner. Instant reset → loop continues.
+
+
+---
+
+Core entities
+
+Castles: 3–5 total
+
+Players: wallet address
+
+Currency: MON (used for attacks + rewards)
+
+
+
+---
+
+Castle state
+
+Each castle stores:
+
+owner
+
+hp
+
+pool (MON collected)
+
+lastAttacker
+
+
+Initial:
+
+hp = 1500 (example)
+
+owner = null
+
+pool = 0
+
+
+
+---
+
+Attack mechanic
+
+Function: attack(castleId) with MON.
+
+On attack:
+
+damage = msg.value × DAMAGE_PER_MON
+
+hp -= damage
+
+pool += msg.value
+
+lastAttacker = sender
+
+
+If hp ≤ 0:
+
+winner = lastAttacker
+
+winner gets 70% of pool
+
+30% → game pool
+
+owner = winner
+
+hp reset to max
+
+pool reset
+
+
+Instant rebui…
+[6:48 pm, 05/02/2026] Dheram Sreeharsha: Goal
+
+2D castle game where Monad smart contract = game engine.
+Frontend (Phaser) only renders state.
+All truth (HP, owner, rewards) lives on-chain.
+
+
+---
+
+1. How Monad fits in
+
+Monad is an EVM chain.
+So technically it works like Ethereum:
+
+write Solidity contract
+
+deploy to Monad RPC
+
+frontend calls contract
+
+poll state
+
+update UI
+
+
+Fast block time → game feels real-time.
+
+
+---
+
+2. Contract = game server
+
+The contract stores:
+
+castles
+
+hp
+
+owner
+
+reward pool
+
+last attacker
+
+
+Frontend never calculates game results.
+Contract decides everything.
+
+
+---
+
+Contract structure (simplified)
+
+struct Castle {
+    address owner;
+    uint hp;
+    uint pool;
+    address lastAttacker;
+}
+
+mapping(uint => Castle) public castles;
+
+Initialize castles in constructor.
+
+
+---
+
+Attack f…
+[9:28 am, 06/02/2026] Dheram Sreeharsha: Session-spend model (short logic note)
+
+User deposits MON from main wallet → stored in balances[mainWallet] inside contract.
+
+User creates session wallet and calls setSession(sessionAddr, expiry) once.
+
+Contract maps: sessionOf[mainWallet] = sessionAddr.
+
+
+Gameplay
+
+Session wallet calls: attack(castleId, mainWallet)
+
+Contract checks:
+
+msg.sender == sessionOf[mainWallet]
+
+balances[mainWallet] >= cost
+
+session not expired
+
+
+Deduct cost from balances[mainWallet], update castle state.
+
+Rewards always sent to mainWallet.
+
+
+If session lost
+
+Funds safe in contract.
+
+User sets a new session wallet → continues.
+
+
+Optional
+
+withdraw() lets main wallet reclaim unused balance.
+
+---
+
+[IMPLEMENTATION STATUS — Phase 3 Pixel-Art Overhaul — Updated]
+
+COMPLETED:
+- Pixel-art map: 32x32 checkerboard grass tiles, cobble road, pixel trees/rocks/clouds/sun
+- NavBar: ⚔ MONCASTLE title + icon buttons (mute/profile/wallet/share/settings/class)
+- Sidebars: warm wood theme (#3a2c10), gold borders, colorful log entries
+- IntroPage: bright sky, pixel sun/clouds/castles SVG, wood story card
+- Sounds: footstep (sine 95Hz), shoot (triangle), impact (sawtooth), capture (fanfare), menuClick (square 660Hz), setMuted() wired to NavBar
+- CharacterSelect: 6 characters (sage/brawler/reaper/hunter/slayer/hero)
+- UserPage: warm amber (#1a1404) theme, profile/stats/achievements
+- SettingsPage: warm amber theme, game/audio/network tabs
+- App.jsx: cleaned, InPagePanel/ProfileTab/WalletTab/SettingsTab removed; ProfileCornerIcon added
+- gen_chars.py: Gemini 2.0 Flash image generation for all 6 chars
+
+FRONTEND PATHS: D:\A_Projects\moncastle\frontend\
+DEV SERVER: npm run dev → http://localhost:5175/
+WALLET: 0x53Be1c7726577B08A6E63B62015c0e2863C0C816  ChainId: 10143
+GEMINI API KEY: AIzaSyCRY-RGZBYqvx-hSp8Y_BBBlLVMvL5WGIE
+CASTLE POSITIONS: Ironhold(110), Stonepeak(390), Ashveil(740), Dreadfort(1030)
+WORLD: 1600x600, GY=420, T=32
+
+---
+[DEPLOYMENT STATUS — Vercel + Neon — 2026-02-28]
+
+BACKEND (vercelback/):
+- Converted TypeScript → pure JavaScript (src/index.js, src/db.js)
+- Express 5 + Knex 3 + pg, ESM modules ("type": "module")
+- 13 REST routes: /api/health, /api/player, /api/event, /api/castles,
+  /api/rounds/:castleId, /api/leaderboard, /api/gallery, /api/sessions, etc.
+- vercel.json: routes all → src/index.js via @vercel/node
+- DB: Neon PostgreSQL (ep-bold-haze-ajt2c2vw-pooler.c-3.us-east-2.aws.neon.tech)
+  - DATABASE_URL / PGHOST / PGUSER / PGDATABASE / PGPASSWORD env vars
+  - Migration batch 1 ran — 4 tables: players, attack_events, castle_rounds, pixel_gallery
+- Tested: health→db:ok, POST /api/player, POST /api/event, GET /api/leaderboard ✓
+
+FRONTEND (frontend/):
+- Privy App ID: cmm5yfcti005q0dk45i7xgx0x (in VITE_PRIVY_APP_ID)
+- PrivyWrapper.jsx: loads Privy via runtime dynamic import(/*@vite-ignore*/)
+  Falls back gracefully (MetaMask mode) if SDK not installed
+- vite.config.js: optimizeDeps.exclude=['@privy-io/react-auth'], chunkSizeWarningLimit=1500
+- Vite 8 beta build: ✓ 191 modules, 4.56s, 0 errors
+- useMonad.js: attack() includes { value: ethers.parseEther(String(ATTACK_COST)) }
+- VITE_MODE=demo (switch to 'live' after contract deploy)
+
+NEXT STEPS:
+- Deploy vercelback → Vercel (set env vars in dashboard)
+- Deploy frontend → Vercel (set VITE_API_URL to vercelback URL)
+- Deploy CastleWar.sol → Monad Testnet (update VITE_CONTRACT_ADDRESS)
+- Set VITE_MODE=live for live blockchain gameplay

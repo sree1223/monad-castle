@@ -1,0 +1,177 @@
+{
+  "address": "",
+  "abi": [
+    {
+      "inputs": [{ "internalType": "uint256", "name": "_castleCount", "type": "uint256" }],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true,  "internalType": "uint256", "name": "castleId",  "type": "uint256" },
+        { "indexed": true,  "internalType": "address", "name": "attacker",  "type": "address" },
+        { "indexed": false, "internalType": "uint256", "name": "damage",    "type": "uint256" },
+        { "indexed": false, "internalType": "uint256", "name": "newHP",     "type": "uint256" },
+        { "indexed": false, "internalType": "uint256", "name": "pool",      "type": "uint256" }
+      ],
+      "name": "Attacked",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true,  "internalType": "uint256", "name": "castleId",   "type": "uint256" },
+        { "indexed": true,  "internalType": "address", "name": "winner",     "type": "address" },
+        { "indexed": false, "internalType": "uint256", "name": "reward",     "type": "uint256" },
+        { "indexed": false, "internalType": "uint256", "name": "newRoundId", "type": "uint256" }
+      ],
+      "name": "CastleFallen",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true,  "internalType": "address", "name": "user",   "type": "address" },
+        { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" }
+      ],
+      "name": "Deposited",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true,  "internalType": "address", "name": "mainWallet",    "type": "address" },
+        { "indexed": true,  "internalType": "address", "name": "sessionWallet", "type": "address" },
+        { "indexed": false, "internalType": "uint256", "name": "expiry",        "type": "uint256" }
+      ],
+      "name": "SessionSet",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        { "indexed": true,  "internalType": "address", "name": "user",   "type": "address" },
+        { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" }
+      ],
+      "name": "Withdrawn",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "ATTACK_COST",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "DAMAGE_PER_ATTACK",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_HP",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "WINNER_SHARE",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        { "internalType": "uint256", "name": "castleId",   "type": "uint256" },
+        { "internalType": "address", "name": "mainWallet", "type": "address" }
+      ],
+      "name": "attack",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "address", "name": "", "type": "address" }],
+      "name": "balances",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "castleCount",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "name": "castles",
+      "outputs": [
+        { "internalType": "address", "name": "owner",        "type": "address" },
+        { "internalType": "uint256", "name": "hp",           "type": "uint256" },
+        { "internalType": "uint256", "name": "pool",         "type": "uint256" },
+        { "internalType": "address", "name": "lastAttacker", "type": "address" },
+        { "internalType": "uint256", "name": "roundId",      "type": "uint256" }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "deposit",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getAllCastles",
+      "outputs": [
+        {
+          "components": [
+            { "internalType": "address", "name": "owner",        "type": "address" },
+            { "internalType": "uint256", "name": "hp",           "type": "uint256" },
+            { "internalType": "uint256", "name": "pool",         "type": "uint256" },
+            { "internalType": "address", "name": "lastAttacker", "type": "address" },
+            { "internalType": "uint256", "name": "roundId",      "type": "uint256" }
+          ],
+          "internalType": "struct CastleWar.Castle[]",
+          "name": "",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        { "internalType": "address", "name": "sessionWallet", "type": "address" },
+        { "internalType": "uint256", "name": "expiry",        "type": "uint256" }
+      ],
+      "name": "setSession",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "treasuryBalance",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [{ "internalType": "uint256", "name": "amount", "type": "uint256" }],
+      "name": "withdraw",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ]
+}
